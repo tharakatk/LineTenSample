@@ -1,0 +1,43 @@
+version: "3.4"
+
+services:
+  lineten.analytics.api:
+    image: ${DOCKER_REGISTRY-}lineten.analytics.api
+    build:
+      context: src
+      dockerfile: LineTen.Analytics.Api/Dockerfile
+    depends_on:
+      - mssql-db
+    environment:
+      DbOptions__DbServer: mssql-db
+      DbOptions__DbUsername: sa
+      DbOptions__DbPassword: P@ssw0rd!
+      DbOptions__DbDatabase: LineTen.Analytics
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ~/.vsdbg:/remote_debugger:rw
+    networks:
+      - lineten.analytics-net
+  mssql-db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    restart: unless-stopped
+    volumes:
+      - mssqlsystem:/var/opt/mssql
+      - mssqluser:/var/opt/sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=P@ssw0rd!
+    networks:
+      - lineten.analytics-net
+volumes:
+  mssqlsystem:
+    name: mssqlsystem
+  mssqluser:
+    name: mssqluser
+networks:
+  lineten.analytics-net:
+    driver: bridge

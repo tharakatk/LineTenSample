@@ -1,0 +1,29 @@
+FROM mcr.microsoft.com/dotnet/core/aspnet:3.1-buster-slim AS base
+RUN apt-get update && apt-get install -y libgdiplus
+WORKDIR /app
+EXPOSE 80
+EXPOSE 443
+
+FROM mcr.microsoft.com/dotnet/core/sdk:3.1-buster AS build
+WORKDIR /src
+COPY . .
+
+# use the label to identity this layer later
+LABEL test=true
+# run the test and collect code coverage (requires coverlet.msbuild to be added to test project)
+RUN dotnet test LineTen.Analytics.sln  --collect:"XPlat Code Coverage" -c Release --results-directory /testresults --logger trx ; exit 0
+# install the report generator tool
+RUN dotnet tool install dotnet-reportgenerator-globaltool --version 4.5.2 --tool-path /tools
+# generate final coverlet file reports using report generator tool (merge togoether)
+RUN /tools/reportgenerator "-reports:/testresults/**/coverage.cobertura.xml" "-targetdir:/testresults/coverage" "-reportTypes:Cobertura" "-assemblyfilters:-LineTen.Analytics.Data"
+
+WORKDIR "/src/LineTen.Analytics.Api"
+RUN dotnet build "LineTen.Analytics.Api.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "LineTen.Analytics.Api.csproj" -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "LineTen.Analytics.Api.dll"]
